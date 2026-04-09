@@ -42,17 +42,24 @@ class TikTokScraper(BaseScraper):
                 headless=True,
             )
             async for user in api.search.users(keyword, count=limit):
-                user_info = user.as_dict if hasattr(user, "as_dict") else {}
-                stats = user_info.get("stats", {})
+                username = getattr(user, "username", "")
+                # Fetch full user info to get stats
+                try:
+                    user_data = await user.info()
+                    user_info = user_data.get("user", user_data)
+                    stats = user_data.get("stats", {})
+                except Exception:
+                    user_info = user.as_dict if hasattr(user, "as_dict") else {}
+                    stats = user_info.get("stats", {})
                 results.append({
-                    "username": getattr(user, "username", ""),
+                    "username": username,
                     "display_name": user_info.get("nickname", ""),
-                    "followers": stats.get("followerCount", 0),
-                    "following": stats.get("followingCount", 0),
-                    "total_videos": stats.get("videoCount", 0),
-                    "likes": stats.get("heartCount", 0),
+                    "followers": stats.get("followerCount") or 0,
+                    "following": stats.get("followingCount") or 0,
+                    "total_videos": stats.get("videoCount") or 0,
+                    "likes": stats.get("heartCount") or 0,
                     "bio": user_info.get("signature", ""),
-                    "profile_url": f"https://www.tiktok.com/@{getattr(user, 'username', '')}",
+                    "profile_url": f"https://www.tiktok.com/@{username}",
                     "platform": "tiktok",
                     "scraped_at": timestamp(),
                 })
