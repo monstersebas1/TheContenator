@@ -1,5 +1,6 @@
 __pycache__
 config.json
+config/accounts/
 .mp/
 venv/
 Songs/
@@ -8,3 +9,4 @@ niche.txt
 *.exe
 auto.sh
 .DS_Store
+.env
