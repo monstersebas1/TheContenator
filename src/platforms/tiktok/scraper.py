@@ -113,16 +113,21 @@ class TikTokScraper(BaseScraper):
             info = await video.info()
             stats = info.get("stats", info.get("statsV2", {}))
             author = info.get("author", {})
+            views = stats.get("playCount") or 0
+            likes = stats.get("diggCount") or 0
+            comments = stats.get("commentCount") or 0
+            shares = stats.get("shareCount") or 0
             return {
                 "video_id": video_id,
                 "title": info.get("desc", ""),
                 "url": video_url,
-                "views": stats.get("playCount", 0),
-                "likes": stats.get("diggCount", 0),
-                "comments": stats.get("commentCount", 0),
-                "shares": stats.get("shareCount", 0),
-                "saves": stats.get("collectCount", 0),
-                "duration": info.get("video", {}).get("duration", 0),
+                "views": views,
+                "likes": likes,
+                "comments": comments,
+                "shares": shares,
+                "saves": stats.get("collectCount") or 0,
+                "engagement_rate": engagement_rate(likes, comments, shares, views),
+                "duration": info.get("video", {}).get("duration") or 0,
                 "posted_date": info.get("createTime", ""),
                 "creator_username": author.get("uniqueId", ""),
                 "creator_display_name": author.get("nickname", ""),

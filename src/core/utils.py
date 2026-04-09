@@ -19,7 +19,10 @@ def ensure_data_dirs():
 
 def format_number(n) -> str:
     """Format large numbers for display: 1234567 -> 1.2M"""
-    n = n or 0
+    try:
+        n = int(n or 0)
+    except (TypeError, ValueError):
+        return str(n)
     if n >= 1_000_000:
         return f"{n / 1_000_000:.1f}M"
     if n >= 1_000:

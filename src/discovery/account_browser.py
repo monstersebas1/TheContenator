@@ -37,7 +37,12 @@ def browse_account(username: str, platform: str = "tiktok", sort_by: str = "most
     videos = scraper.get_account_videos(username, limit=limit)
 
     sort_field, reverse = SORT_KEYS[sort_by]
-    videos.sort(key=lambda x: x.get(sort_field, 0) or 0, reverse=reverse)
+    # Use str default for date fields, numeric default for everything else
+    date_fields = ("posted_date",)
+    if sort_field in date_fields:
+        videos.sort(key=lambda x: str(x.get(sort_field, "") or ""), reverse=reverse)
+    else:
+        videos.sort(key=lambda x: float(x.get(sort_field, 0) or 0), reverse=reverse)
 
     log(f"Found {len(videos)} videos for @{username}, sorted by {sort_by}")
     return videos

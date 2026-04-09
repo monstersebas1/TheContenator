@@ -91,8 +91,8 @@ def display_video_details(details: dict):
         ("Likes", format_number(details.get("likes", details.get("like_count", 0)) or 0)),
         ("Comments", format_number(details.get("comments", details.get("comment_count", 0)) or 0)),
         ("Shares", format_number(details.get("shares", 0) or 0)),
-        ("Engagement", f"{details.get('engagement_rate', 0):.1f}%"),
-        ("Duration", f"{details.get('duration', 0)}s"),
+        ("Engagement", f"{details.get('engagement_rate') or 0:.1f}%"),
+        ("Duration", f"{details.get('duration') or 0}s"),
         ("Posted", details.get("posted_date", details.get("upload_date", "?"))),
         ("Hashtags", ", ".join(details.get("hashtags", details.get("tags", [])) or [])),
         ("Resolution", details.get("resolution", "?")),
@@ -239,17 +239,20 @@ def video_actions(videos: list[dict], platform: str):
                 print(f"    Transcription failed: {e}")
 
         else:
-            # Show details
-            url = video.get("url", "")
-            if url:
-                try:
-                    from analyzer.video_stats import analyze_video
-                    details = analyze_video(url)
-                    display_video_details(details)
-                except Exception as e:
-                    print(f"    Error getting details: {e}")
-            else:
+            # Show details — use existing scraped data first, only fetch if needed
+            if video.get("views") or video.get("likes") or video.get("comments"):
                 display_video_details(video)
+            else:
+                url = video.get("url", "")
+                if url:
+                    try:
+                        from analyzer.video_stats import analyze_video
+                        details = analyze_video(url)
+                        display_video_details(details)
+                    except Exception as e:
+                        print(f"    Error getting details: {e}")
+                else:
+                    display_video_details(video)
 
 
 # ─── Analyze Menu ────────────────────────────────────────
@@ -285,7 +288,8 @@ def handle_analyze():
             path = download(url)
             print("    Transcribing...")
             result = transcribe(path)
-            txt_path = save_transcript(result)
+            vid_id = os.path.splitext(os.path.basename(path))[0] if path else "unknown"
+            txt_path = save_transcript(result, video_id=vid_id)
             print(f"\n    --- Script ---")
             print(f"    {result['full_text'][:1000]}")
             if len(result['full_text']) > 1000:
