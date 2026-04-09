@@ -17,8 +17,9 @@ def ensure_data_dirs():
         os.makedirs(os.path.join(DATA_DIR, subdir), exist_ok=True)
 
 
-def format_number(n: int) -> str:
+def format_number(n) -> str:
     """Format large numbers for display: 1234567 -> 1.2M"""
+    n = n or 0
     if n >= 1_000_000:
         return f"{n / 1_000_000:.1f}M"
     if n >= 1_000:
@@ -26,8 +27,12 @@ def format_number(n: int) -> str:
     return str(n)
 
 
-def engagement_rate(likes: int, comments: int, shares: int, views: int) -> float:
+def engagement_rate(likes, comments, shares, views) -> float:
     """Calculate engagement rate as a percentage."""
+    likes = likes or 0
+    comments = comments or 0
+    shares = shares or 0
+    views = views or 0
     if views == 0:
         return 0.0
     return ((likes + comments + shares) / views) * 100

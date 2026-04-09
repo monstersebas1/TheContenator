@@ -3,18 +3,21 @@
 import os
 from faster_whisper import WhisperModel
 
-from core.config import get
+from core.config import config_get
 from core.utils import DATA_DIR, ensure_data_dirs, log
 
 TRANSCRIPTS_DIR = os.path.join(DATA_DIR, "transcripts")
 
+# Defaults if config.json is missing or incomplete
+_WHISPER_DEFAULTS = {"model": "base", "device": "auto", "compute_type": "int8"}
+
 
 def _get_model() -> WhisperModel:
-    """Load the Whisper model from config."""
-    whisper_cfg = get("whisper", {})
-    model_size = whisper_cfg.get("model", "base")
-    device = whisper_cfg.get("device", "auto")
-    compute_type = whisper_cfg.get("compute_type", "int8")
+    """Load the Whisper model from config (with sane defaults)."""
+    whisper_cfg = config_get("whisper", {}) or {}
+    model_size = whisper_cfg.get("model", _WHISPER_DEFAULTS["model"])
+    device = whisper_cfg.get("device", _WHISPER_DEFAULTS["device"])
+    compute_type = whisper_cfg.get("compute_type", _WHISPER_DEFAULTS["compute_type"])
 
     log(f"Loading Whisper model: {model_size} (device={device}, compute={compute_type})")
     return WhisperModel(model_size, device=device, compute_type=compute_type)

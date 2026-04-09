@@ -2,15 +2,7 @@
 
 from core.constants import SORT_OPTIONS
 from core.utils import log
-from platforms.tiktok.scraper import TikTokScraper
-from platforms.youtube.scraper import YouTubeScraper
-from platforms.instagram.scraper import InstagramScraper
-
-SCRAPERS = {
-    "tiktok": TikTokScraper,
-    "youtube": YouTubeScraper,
-    "instagram": InstagramScraper,
-}
+from platforms import get_scraper
 
 SORT_KEYS = {
     "most_views": ("views", True),
@@ -38,17 +30,14 @@ def browse_account(username: str, platform: str = "tiktok", sort_by: str = "most
     Returns:
         Sorted list of video dicts
     """
-    if platform not in SCRAPERS:
-        raise ValueError(f"Unsupported platform: {platform}. Use: {list(SCRAPERS.keys())}")
-
     if sort_by not in SORT_KEYS:
         raise ValueError(f"Unsupported sort: {sort_by}. Use: {list(SORT_KEYS.keys())}")
 
-    scraper = SCRAPERS[platform]()
+    scraper = get_scraper(platform)
     videos = scraper.get_account_videos(username, limit=limit)
 
     sort_field, reverse = SORT_KEYS[sort_by]
-    videos.sort(key=lambda x: x.get(sort_field, 0), reverse=reverse)
+    videos.sort(key=lambda x: x.get(sort_field, 0) or 0, reverse=reverse)
 
     log(f"Found {len(videos)} videos for @{username}, sorted by {sort_by}")
     return videos

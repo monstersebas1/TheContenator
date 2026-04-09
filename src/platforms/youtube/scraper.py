@@ -44,7 +44,6 @@ class YouTubeScraper(BaseScraper):
         """Get videos from a YouTube channel."""
         log(f"Fetching videos for YouTube channel: {username}")
 
-        # Support @handle, channel URL, or channel ID
         if username.startswith("http"):
             channel_url = username
         elif username.startswith("@"):
@@ -66,8 +65,8 @@ class YouTubeScraper(BaseScraper):
                 "video_id": entry.get("id", ""),
                 "title": entry.get("title", ""),
                 "url": entry.get("url", f"https://www.youtube.com/watch?v={entry.get('id', '')}"),
-                "views": entry.get("view_count", 0),
-                "duration": entry.get("duration", 0),
+                "views": entry.get("view_count") or 0,
+                "duration": entry.get("duration") or 0,
                 "posted_date": entry.get("upload_date", ""),
                 "creator_username": username,
                 "platform": "youtube",
@@ -85,9 +84,9 @@ class YouTubeScraper(BaseScraper):
             info = ydl.extract_info(video_url, download=False)
             info = ydl.sanitize_info(info)
 
-        views = info.get("view_count", 0)
-        likes = info.get("like_count", 0)
-        comments = info.get("comment_count", 0)
+        views = info.get("view_count") or 0
+        likes = info.get("like_count") or 0
+        comments = info.get("comment_count") or 0
 
         return {
             "video_id": info.get("id", ""),
@@ -99,13 +98,13 @@ class YouTubeScraper(BaseScraper):
             "comments": comments,
             "shares": 0,
             "engagement_rate": engagement_rate(likes, comments, 0, views),
-            "duration": info.get("duration", 0),
+            "duration": info.get("duration") or 0,
             "posted_date": info.get("upload_date", ""),
             "creator_username": info.get("uploader", ""),
             "channel_id": info.get("channel_id", ""),
             "thumbnail_url": info.get("thumbnail", ""),
-            "tags": info.get("tags", []),
-            "categories": info.get("categories", []),
+            "tags": info.get("tags") or [],
+            "categories": info.get("categories") or [],
             "resolution": f"{info.get('width', '?')}x{info.get('height', '?')}",
             "platform": "youtube",
             "scraped_at": timestamp(),
@@ -126,8 +125,8 @@ class YouTubeScraper(BaseScraper):
                 "video_id": entry.get("id", ""),
                 "title": entry.get("title", ""),
                 "url": entry.get("url", f"https://www.youtube.com/watch?v={entry.get('id', '')}"),
-                "views": entry.get("view_count", 0),
-                "duration": entry.get("duration", 0),
+                "views": entry.get("view_count") or 0,
+                "duration": entry.get("duration") or 0,
                 "creator_username": entry.get("uploader", ""),
                 "platform": "youtube",
                 "scraped_at": timestamp(),

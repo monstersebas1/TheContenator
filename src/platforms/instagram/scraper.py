@@ -2,7 +2,7 @@
 
 import instaloader
 
-from core.config import get
+from core.config import config_get
 from core.utils import log, engagement_rate, timestamp
 from platforms.base import BaseScraper
 
@@ -25,7 +25,7 @@ class InstagramScraper(BaseScraper):
         """Login if credentials are configured and not already logged in."""
         if self._logged_in:
             return
-        ig_config = get("instagram", {})
+        ig_config = config_get("instagram", {}) or {}
         username = ig_config.get("username", "")
         password = ig_config.get("password", "")
         if username and password:

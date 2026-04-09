@@ -4,7 +4,7 @@ import asyncio
 
 from TikTokApi import TikTokApi
 
-from core.config import get
+from core.config import config_get
 from core.utils import log, engagement_rate, timestamp
 from platforms.base import BaseScraper
 
@@ -17,7 +17,7 @@ class TikTokScraper(BaseScraper):
         return "tiktok"
 
     def _get_ms_tokens(self) -> list[str]:
-        token = get("tiktok", {}).get("ms_token", "")
+        token = (config_get("tiktok", {}) or {}).get("ms_token", "")
         return [token] if token else []
 
     def _run(self, coro):

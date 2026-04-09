@@ -15,7 +15,7 @@ from storage.db import init_db
 
 # ─── Helpers ──────────────────────────────────────────────
 
-def pick_platform() -> str:
+def pick_platform() -> str | None:
     """Prompt user to select a platform."""
     print()
     for i, p in enumerate(PLATFORMS, 1):

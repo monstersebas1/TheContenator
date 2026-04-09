@@ -32,27 +32,28 @@ def download(url: str, output_dir: str = None, quality: str = "best") -> str:
     output_dir = output_dir or DOWNLOADS_DIR
     fmt = QUALITY_MAP.get(quality, quality)
 
-    downloaded_path = None
-
-    def _hook(d):
-        nonlocal downloaded_path
-        if d["status"] == "finished":
-            downloaded_path = d.get("filename")
-            log(f"Download complete: {os.path.basename(downloaded_path)}")
+    outtmpl = os.path.join(output_dir, "%(extractor)s_%(uploader)s_%(id)s.%(ext)s")
 
     ydl_opts = {
         "format": fmt,
         "merge_output_format": "mp4",
-        "outtmpl": os.path.join(output_dir, "%(extractor)s_%(uploader)s_%(id)s.%(ext)s"),
+        "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
-        "progress_hooks": [_hook],
     }
 
     with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+        info = ydl.extract_info(url)
+        # prepare_filename returns the final post-merge path
+        final_path = ydl.prepare_filename(info)
+        # If merge happened, extension might differ — force .mp4
+        base, _ = os.path.splitext(final_path)
+        mp4_path = base + ".mp4"
+        if os.path.exists(mp4_path):
+            final_path = mp4_path
 
-    return downloaded_path
+    log(f"Download complete: {os.path.basename(final_path)}")
+    return final_path
 
 
 def batch_download(urls: list[str], output_dir: str = None, quality: str = "best") -> list[str]:

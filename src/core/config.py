@@ -8,17 +8,14 @@ CONFIG_PATH = os.path.join(ROOT_DIR, "config.json")
 
 
 def load_config() -> dict:
-    """Read and return the full config dict."""
+    """Read and return the full config dict. Returns empty dict if missing."""
     if not os.path.exists(CONFIG_PATH):
-        raise FileNotFoundError(
-            f"config.json not found at {CONFIG_PATH}. "
-            "Copy config/config.example.json to config.json and fill in values."
-        )
+        return {}
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def get(key: str, default=None):
+def config_get(key: str, default=None):
     """Get a single config value by key."""
     config = load_config()
     return config.get(key, default)
