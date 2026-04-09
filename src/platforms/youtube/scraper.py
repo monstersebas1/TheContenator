@@ -13,23 +13,38 @@ class YouTubeScraper(BaseScraper):
     def platform_name(self) -> str:
         return "youtube"
 
+    def _get_channel_stats(self, channel_url: str) -> dict:
+        """Fetch a channel page to get subscriber count and video count."""
+        ydl_opts = {"quiet": True, "no_warnings": True, "extract_flat": True, "playlistend": 1}
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(channel_url, download=False)
+            return {
+                "followers": info.get("channel_follower_count") or 0,
+                "total_videos": info.get("playlist_count") or len(info.get("entries", [])),
+                "display_name": info.get("channel") or info.get("uploader", ""),
+                "bio": (info.get("description") or "")[:200],
+            }
+        except Exception:
+            return {"followers": 0, "total_videos": 0, "display_name": "", "bio": ""}
+
     def search_creators(self, keyword: str, limit: int = 20) -> list[dict]:
-        """Search YouTube for channels/creators by keyword via video search."""
+        """Search YouTube for channels/creators by keyword, then fetch their stats."""
         log(f"Searching YouTube creators for: {keyword}")
         ydl_opts = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist"}
 
         with YoutubeDL(ydl_opts) as ydl:
-            results = ydl.extract_info(f"ytsearch{limit * 2}:{keyword}", download=False)
+            results = ydl.extract_info(f"ytsearch{limit * 3}:{keyword}", download=False)
 
+        # Deduplicate by channel
         seen = {}
         for entry in results.get("entries", []):
             channel_id = entry.get("channel_id")
-            uploader = entry.get("uploader", "")
             if not channel_id or channel_id in seen:
                 continue
             seen[channel_id] = {
                 "username": entry.get("uploader_id", channel_id),
-                "display_name": uploader,
+                "display_name": entry.get("uploader", ""),
                 "channel_id": channel_id,
                 "profile_url": f"https://www.youtube.com/channel/{channel_id}",
                 "platform": "youtube",
@@ -38,7 +53,19 @@ class YouTubeScraper(BaseScraper):
             if len(seen) >= limit:
                 break
 
-        return list(seen.values())
+        # Fetch real stats for each channel
+        creators = list(seen.values())
+        log(f"Found {len(creators)} channels, fetching stats...")
+        for creator in creators:
+            channel_url = f"https://www.youtube.com/channel/{creator['channel_id']}/videos"
+            stats = self._get_channel_stats(channel_url)
+            creator["followers"] = stats["followers"]
+            creator["total_videos"] = stats["total_videos"]
+            if stats["display_name"]:
+                creator["display_name"] = stats["display_name"]
+            creator["bio"] = stats.get("bio", "")
+
+        return creators
 
     def get_account_videos(self, username: str, limit: int = 50) -> list[dict]:
         """Get videos from a YouTube channel."""

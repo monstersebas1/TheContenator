@@ -40,11 +40,12 @@ def display_accounts(accounts: list[dict]):
     table.align["Followers"] = "r"
     table.align["Videos"] = "r"
     for i, a in enumerate(accounts, 1):
+        username = a.get("username") or a.get("display_name") or "?"
         table.add_row([
             i,
-            a.get("username", "?"),
-            format_number(a.get("followers", 0)),
-            a.get("total_videos", "?"),
+            username,
+            format_number(a.get("followers") or 0),
+            a.get("total_videos") or "?",
             a.get("platform", "?"),
         ])
     print()
