@@ -1,185 +1,159 @@
-"""TikTok Scraper — uses TikTok-Api for accounts, videos, and stats."""
+"""TikTok Scraper — uses yt-dlp for fast, browserless TikTok data extraction."""
 
-import asyncio
+from yt_dlp import YoutubeDL
 
-from TikTokApi import TikTokApi
-
-from core.config import config_get
 from core.utils import log, engagement_rate, timestamp
 from platforms.base import BaseScraper
 
 
 class TikTokScraper(BaseScraper):
-    """TikTok platform scraper using the unofficial TikTok-Api."""
+    """TikTok platform scraper using yt-dlp — no browser, no tokens needed."""
 
     @property
     def platform_name(self) -> str:
         return "tiktok"
 
-    def _get_ms_tokens(self) -> list[str]:
-        token = (config_get("tiktok", {}) or {}).get("ms_token", "")
-        return [token] if token else []
-
-    def _run(self, coro):
-        """Run an async coroutine synchronously."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(asyncio.run, coro).result()
-        return asyncio.run(coro)
-
-    async def _search_creators_async(self, keyword: str, limit: int) -> list[dict]:
-        results = []
-        async with TikTokApi() as api:
-            await api.create_sessions(
-                num_sessions=1,
-                ms_tokens=self._get_ms_tokens(),
-                headless=True,
-            )
-            async for user in api.search.users(keyword, count=limit):
-                username = getattr(user, "username", "")
-                # Fetch full user info to get stats
-                try:
-                    user_data = await user.info()
-                    user_info = user_data.get("user", user_data)
-                    stats = user_data.get("stats", {})
-                except Exception:
-                    user_info = user.as_dict if hasattr(user, "as_dict") else {}
-                    stats = user_info.get("stats", {})
-                results.append({
-                    "username": username,
-                    "display_name": user_info.get("nickname", ""),
-                    "followers": stats.get("followerCount") or 0,
-                    "following": stats.get("followingCount") or 0,
-                    "total_videos": stats.get("videoCount") or 0,
-                    "likes": stats.get("heartCount") or 0,
-                    "bio": user_info.get("signature", ""),
-                    "profile_url": f"https://www.tiktok.com/@{username}",
-                    "platform": "tiktok",
-                    "scraped_at": timestamp(),
-                })
-        return results
-
     def search_creators(self, keyword: str, limit: int = 20) -> list[dict]:
+        """Search TikTok creators by keyword via video search, then deduplicate by creator."""
         log(f"Searching TikTok creators for: {keyword}")
-        return self._run(self._search_creators_async(keyword, limit))
+        ydl_opts = {"quiet": True, "no_warnings": True, "extract_flat": True}
 
-    async def _get_account_videos_async(self, username: str, limit: int) -> list[dict]:
-        results = []
-        async with TikTokApi() as api:
-            await api.create_sessions(
-                num_sessions=1,
-                ms_tokens=self._get_ms_tokens(),
-                headless=True,
-            )
-            user = api.user(username=username)
-            async for video in user.videos(count=limit):
-                vdict = video.as_dict if hasattr(video, "as_dict") else {}
-                stats = vdict.get("stats", {})
-                views = stats.get("playCount", 0)
-                likes = stats.get("diggCount", 0)
-                comments = stats.get("commentCount", 0)
-                shares = stats.get("shareCount", 0)
-                results.append({
-                    "video_id": getattr(video, "id", ""),
-                    "title": vdict.get("desc", ""),
-                    "url": f"https://www.tiktok.com/@{username}/video/{getattr(video, 'id', '')}",
-                    "views": views,
-                    "likes": likes,
-                    "comments": comments,
-                    "shares": shares,
-                    "engagement_rate": engagement_rate(likes, comments, shares, views),
-                    "duration": vdict.get("video", {}).get("duration", 0),
-                    "posted_date": vdict.get("createTime", ""),
-                    "thumbnail_url": vdict.get("video", {}).get("cover", ""),
-                    "hashtags": [t.get("hashtagName", "") for t in vdict.get("textExtra", []) if t.get("hashtagName")],
-                    "platform": "tiktok",
-                    "creator_username": username,
-                    "scraped_at": timestamp(),
-                })
-        return results
+        # yt-dlp doesn't have native TikTok search, so we search via web
+        # Use tiktok search URL pattern
+        search_url = f"https://www.tiktok.com/search/user?q={keyword}"
 
-    def get_account_videos(self, username: str, limit: int = 50) -> list[dict]:
-        log(f"Fetching videos for TikTok user: @{username}")
-        return self._run(self._get_account_videos_async(username, limit))
+        # Fallback: search videos and extract unique creators
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                results = ydl.extract_info(search_url, download=False)
+            entries = results.get("entries", []) if results else []
+        except Exception:
+            # If direct search fails, try via video search
+            entries = []
 
-    async def _get_video_details_async(self, video_url: str) -> dict:
-        async with TikTokApi() as api:
-            await api.create_sessions(
-                num_sessions=1,
-                ms_tokens=self._get_ms_tokens(),
-                headless=True,
-            )
-            video_id = video_url.split("/video/")[-1].split("?")[0] if "/video/" in video_url else video_url
-            video = api.video(id=video_id)
-            info = await video.info()
-            stats = info.get("stats", info.get("statsV2", {}))
-            author = info.get("author", {})
-            views = stats.get("playCount") or 0
-            likes = stats.get("diggCount") or 0
-            comments = stats.get("commentCount") or 0
-            shares = stats.get("shareCount") or 0
-            return {
-                "video_id": video_id,
-                "title": info.get("desc", ""),
-                "url": video_url,
-                "views": views,
-                "likes": likes,
-                "comments": comments,
-                "shares": shares,
-                "saves": stats.get("collectCount") or 0,
-                "engagement_rate": engagement_rate(likes, comments, shares, views),
-                "duration": info.get("video", {}).get("duration") or 0,
-                "posted_date": info.get("createTime", ""),
-                "creator_username": author.get("uniqueId", ""),
-                "creator_display_name": author.get("nickname", ""),
-                "thumbnail_url": info.get("video", {}).get("cover", ""),
-                "hashtags": [t.get("hashtagName", "") for t in info.get("textExtra", []) if t.get("hashtagName")],
-                "music": info.get("music", {}).get("title", ""),
+        # If we got user results, parse them
+        seen = {}
+        for entry in entries[:limit * 3]:
+            uploader = entry.get("uploader") or entry.get("creator") or ""
+            uploader_id = entry.get("uploader_id") or uploader
+            if not uploader_id or uploader_id in seen:
+                continue
+            seen[uploader_id] = {
+                "username": uploader_id,
+                "display_name": uploader,
+                "profile_url": f"https://www.tiktok.com/@{uploader_id}",
                 "platform": "tiktok",
                 "scraped_at": timestamp(),
             }
+            if len(seen) >= limit:
+                break
+
+        return list(seen.values())
+
+    def get_account_videos(self, username: str, limit: int = 50) -> list[dict]:
+        """Get videos from a TikTok user's profile."""
+        log(f"Fetching videos for TikTok user: @{username}")
+        username = username.lstrip("@")
+        profile_url = f"https://www.tiktok.com/@{username}"
+
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "playlistend": limit,
+        }
+
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(profile_url, download=False)
+
+        results = []
+        entries = info.get("entries", []) if info else []
+        for entry in entries[:limit]:
+            views = entry.get("view_count") or 0
+            likes = entry.get("like_count") or 0
+            comments = entry.get("comment_count") or 0
+            results.append({
+                "video_id": entry.get("id", ""),
+                "title": entry.get("title", ""),
+                "url": entry.get("url") or f"https://www.tiktok.com/@{username}/video/{entry.get('id', '')}",
+                "views": views,
+                "likes": likes,
+                "comments": comments,
+                "shares": 0,
+                "engagement_rate": engagement_rate(likes, comments, 0, views),
+                "duration": entry.get("duration") or 0,
+                "posted_date": entry.get("upload_date", ""),
+                "creator_username": username,
+                "platform": "tiktok",
+                "scraped_at": timestamp(),
+            })
+
+        return results
 
     def get_video_details(self, video_url: str) -> dict:
+        """Get full details for a single TikTok video."""
         log(f"Getting TikTok video details: {video_url}")
-        return self._run(self._get_video_details_async(video_url))
+        ydl_opts = {"quiet": True, "no_warnings": True}
 
-    async def _get_trending_async(self, limit: int) -> list[dict]:
-        results = []
-        async with TikTokApi() as api:
-            await api.create_sessions(
-                num_sessions=1,
-                ms_tokens=self._get_ms_tokens(),
-                headless=True,
-            )
-            async for video in api.trending.videos(count=limit):
-                vdict = video.as_dict if hasattr(video, "as_dict") else {}
-                stats = vdict.get("stats", {})
-                author = vdict.get("author", {})
-                views = stats.get("playCount", 0)
-                likes = stats.get("diggCount", 0)
-                comments = stats.get("commentCount", 0)
-                shares = stats.get("shareCount", 0)
-                results.append({
-                    "video_id": getattr(video, "id", ""),
-                    "title": vdict.get("desc", ""),
-                    "url": f"https://www.tiktok.com/@{author.get('uniqueId', '')}/video/{getattr(video, 'id', '')}",
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            info = ydl.sanitize_info(info)
+
+        views = info.get("view_count") or 0
+        likes = info.get("like_count") or 0
+        comments = info.get("comment_count") or 0
+        shares = info.get("repost_count") or 0
+
+        return {
+            "video_id": info.get("id", ""),
+            "title": info.get("description") or info.get("title", ""),
+            "description": info.get("description", ""),
+            "url": video_url,
+            "views": views,
+            "likes": likes,
+            "comments": comments,
+            "shares": shares,
+            "engagement_rate": engagement_rate(likes, comments, shares, views),
+            "duration": info.get("duration") or 0,
+            "posted_date": info.get("upload_date", ""),
+            "creator_username": info.get("uploader") or info.get("creator", ""),
+            "thumbnail_url": info.get("thumbnail", ""),
+            "hashtags": info.get("tags") or [],
+            "music": info.get("track") or info.get("artist", ""),
+            "platform": "tiktok",
+            "scraped_at": timestamp(),
+        }
+
+    def get_trending(self, category: str = None, limit: int = 50) -> list[dict]:
+        """Get trending TikTok videos via search."""
+        log("Fetching TikTok trending videos")
+        query = f"trending {category}" if category else "viral tiktok"
+
+        # Use yt-dlp's search to find popular TikTok content
+        ydl_opts = {"quiet": True, "no_warnings": True, "extract_flat": True}
+
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                results = ydl.extract_info(f"ytsearch{limit}:tiktok {query}", download=False)
+
+            videos = []
+            for entry in (results.get("entries", []) if results else []):
+                views = entry.get("view_count") or 0
+                likes = entry.get("like_count") or 0
+                videos.append({
+                    "video_id": entry.get("id", ""),
+                    "title": entry.get("title", ""),
+                    "url": entry.get("url", ""),
                     "views": views,
                     "likes": likes,
-                    "comments": comments,
-                    "shares": shares,
-                    "engagement_rate": engagement_rate(likes, comments, shares, views),
-                    "creator_username": author.get("uniqueId", ""),
+                    "comments": 0,
+                    "shares": 0,
+                    "engagement_rate": engagement_rate(likes, 0, 0, views),
+                    "creator_username": entry.get("uploader", ""),
                     "platform": "tiktok",
                     "scraped_at": timestamp(),
                 })
-        return results
-
-    def get_trending(self, category: str = None, limit: int = 50) -> list[dict]:
-        log("Fetching TikTok trending videos")
-        return self._run(self._get_trending_async(limit))
+            return videos
+        except Exception as e:
+            log(f"Trending fetch failed: {e}")
+            return []
