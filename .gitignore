@@ -1,12 +1,32 @@
-__pycache__
-config.json
-config/accounts/
-.mp/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
 venv/
-Songs/
-google-maps-scraper-0.9.7/
-niche.txt
-*.exe
-auto.sh
+.venv/
+
+# Data (runtime, never committed)
+data/
+.mp/
+
+# Config (contains keys)
+config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# OMC state
+.omc/
+
+# Env
 .env

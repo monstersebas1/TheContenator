@@ -1,6 +1,15 @@
-"""Generate titles, descriptions, and hashtags for reposted videos."""
+"""Metadata — extract and read video metadata without downloading."""
 
 
-def generate_metadata(original_title, platform):
-    """Generate platform-optimized metadata for a reposted video."""
-    raise NotImplementedError("Metadata generator not yet implemented")
+def get_metadata(url: str) -> dict:
+    """
+    Extract metadata from a video URL without downloading the video.
+
+    Args:
+        url: Video URL
+
+    Returns:
+        Dict with: title, description, duration, resolution, filesize,
+        uploader, upload_date, view_count, like_count, comment_count
+    """
+    raise NotImplementedError("metadata not yet built")
